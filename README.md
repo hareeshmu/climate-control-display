@@ -1,7 +1,9 @@
 # Climate Control Display with ESPHome and LVGL
 An ESPHome-based smart climate control interface for Home Assistant using WT32-SC01 Plus display.
 
-![Device Preview](assets/device-preview.jpg)
+![Device Preview Climate Off](images/climate_off.jpg)
+
+![Device Preview Climate On](images/climate_on.jpg)
 
 [![ESPHome: 2025.2.1](https://img.shields.io/badge/ESPHome-2025.2.1-blue.svg)](https://esphome.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
