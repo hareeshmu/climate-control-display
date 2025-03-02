@@ -218,7 +218,7 @@ text_sensor:
         - script.execute:
             id: set_hvac_mode
             mode: !lambda return x;
-        # - script.execute: turn_on_screen_light
+        - script.execute: turn_on_screen_light
   # HA Climate HVAC fan mode sensor
   - platform: homeassistant
     entity_id: ${climate_entity}
@@ -229,7 +229,7 @@ text_sensor:
       - script.execute:
           id: set_fan_mode
           mode: !lambda return x;
-      # - script.execute: turn_on_screen_light
+      - script.execute: turn_on_screen_light
   # Wifi Info
   - platform: wifi_info
     ip_address:
@@ -290,11 +290,7 @@ touchscreen:
       mirror_y: false
       mirror_x: true
     on_touch:
-    - if:
-        condition:
-          - light.is_off: backlight
-        then:
-          - script.execute: turn_on_screen_light
+      - script.execute: turn_on_screen_light
 
 output:
   - platform: ledc
@@ -375,7 +371,7 @@ sensor:
           text:
             format: "%.1f"
             args: [ 'round(x * 10) / 10' ]
-      # - script.execute: turn_on_screen_light
+      - script.execute: turn_on_screen_light
   # HA Climate current temperature sensor
   - platform: homeassistant
     entity_id: ${climate_entity}
@@ -471,13 +467,13 @@ script:
       - light.turn_on:
             id: backlight
             brightness: 50%
-            transition_length: 2s
+            transition_length: 5s
       - delay: 30s
       - light.turn_on:
             id: backlight
             brightness: 35%
             transition_length: 5s
-      - delay: 60s
+      - delay: 30s
       - light.turn_off:
             id: backlight
       - lvgl.pause:
