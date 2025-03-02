@@ -10,7 +10,7 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 
 ## Demo Video
 
-<a href="https://www.youtube.com/watch?v=l97-AFoVEJQ" target="_blank">▶ Click here to watch a short demo</a>
+<a href="https://www.youtube.com/watch?v=l97-AFoVEJQ" target="_blank" rel="noopener noreferrer">▶ Click here to watch a short demo</a>
 
 ## Table of Contents
 - [Hardware Requirements](#hardware-requirements)
