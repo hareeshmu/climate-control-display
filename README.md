@@ -9,8 +9,8 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 ![Device Preview Climate On](images/climate_on.jpg)
 
 ## Demo Video
-[Click here to watch a short demo](https://www.youtube.com/watch?v=l97-AFoVEJQ) [<img src="https://img.shields.io/badge/-Watch%20Demo-red?style=flat&logo=youtube" height="20px">](https://www.youtube.com/watch?v=l97-AFoVEJQ)
 
+<a href="https://www.youtube.com/watch?v=l97-AFoVEJQ" target="_blank">▶ Click here to watch a short demo</a>
 
 ## Table of Contents
 - [Hardware Requirements](#hardware-requirements)
