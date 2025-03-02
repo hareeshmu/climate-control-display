@@ -1,0 +1,1131 @@
+# ESPHome configuration for Climate Control Display
+# Version: v1.0.0
+# Date: 2025-03-01
+# ESPHome Version 2025.2.1
+# WT32-SC01 PLUS 
+# ZX3D50CE08S-v15-USRC 230228
+# 3.5 inch 320x480, driver ST7796UI, interface MCU8080 8Bit, color RGB565, ILI9488 controller 
+# single touch capacitive FT6336U I2S
+# ESP32-S3 model ESP32-WROVER-B, WiFi + BT + BLE MCU module, 4MB SPI flash and 8MB PSRAM
+# https://www.marutsu.co.jp/contents/shop/marutsu/datasheet/khe_WT32-SC01-PLUS.pdf
+# https://esphome.io/components/touchscreen/ft63x6.html
+# https://www.esp32.com/viewtopic.php?t=39219
+# https://github.com/esphome/esphome/pull/8230 Implement i80 bus for ili9xxx displays
+# https://esphome.io/cookbook/lvgl.html
+
+
+substitutions:
+  ##################################################################
+  # CONFIG - Update values ONLY here
+  device_name: 'master-ac-display'
+  friendly_name: 'master-ac-display'
+  climate_entity: climate.master_ac # Home Assistant climate entity
+  # Secrets and Passwords - Update values in secrets.yaml
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  fallback_password: !secret fallback_password
+  ota_password: !secret ota_password
+  api_key: !secret api_key_b64
+  ##################################################################
+  # Material Design Icons
+  mdi_wifi: "\U000F05A9"
+  mdi_wifi_off: "\U000F05AA"
+  mdi_power: "\U000F0425"
+  mdi_fire: "\U000F0238"
+  mdi_snowflake: "\U000F0717"
+  mdi_fan: "\U000F0210"
+  mdi_fan_auto: "\U000F171D"
+  mdi_fan_speed_1: "\U000F1472"
+  mdi_fan_speed_2: "\U000F1473"
+  mdi_fan_speed_3: "\U000F1474"
+  mdi_fan_off: "\U000F081D"
+  mdi_thermometer: "\U000F050F"
+  mdi_thermostat_auto: "\U000F1B17"
+  mdi_chevron_up: "\U000F0143"
+  mdi_chevron_down: "\U000F0140"
+  mdi_plus: "\U000F0415"
+  mdi_minus: "\U000F0374"
+  mdi_water_percent: "\U000F058E"
+  # Colors common
+  color_white: "0xFFFFFF"
+  color_grey: "0xa5a5a5"
+  color_dark_grey: "0x282828"
+  color_darker_grey: "0x212121"
+  color_light_grey: "0x444444"
+  color_accent: "0x18bcf2"
+  color_warning: "0xd2691e"
+  color_success: "0x7fff00"
+  # Mode colors
+  color_auto: "0x2fd1c5"
+  color_cool: "0x00bfff"
+  color_heat: "0xff1493"
+  color_dry: "0xff8c00"
+  color_fan: "0x87ceeb"
+  # Temperature colors
+  color_temp_current: "0x35ffe6"
+  color_temp_set: "0x51a0e4"
+  color_temp_ticks: "0x585858"
+
+esphome:
+  name: $device_name
+  friendly_name: $friendly_name
+  platformio_options:
+    build_unflags: -Werror=all
+    board_build.flash_mode: dio
+    board_build.flash_size: 16MB
+  on_boot:
+    - delay: 1s
+    - script.execute: turn_on_screen_light
+    - delay: 5s
+    - lvgl.widget.hide: boot_screen
+
+esp32:
+  board: esp32-s3-devkitc-1
+  variant: esp32s3
+  flash_size: 16MB
+  framework:
+    type: esp-idf
+    sdkconfig_options:
+      CONFIG_ESP32S3_DEFAULT_CPU_FREQ_240: "y"
+      CONFIG_ESP32S3_DATA_CACHE_64KB: "y"
+      CONFIG_ESP32S3_DATA_CACHE_LINE_64B: "y"
+      CONFIG_SPIRAM_FETCH_INSTRUCTIONS: y
+      CONFIG_SPIRAM_RODATA: y
+
+preferences:
+  flash_write_interval: 1min
+
+psram:
+  mode: quad
+  speed: 80MHz
+
+logger:
+
+debug:
+  update_interval: 60s
+
+wifi:
+  ssid: $wifi_ssid
+  password: $wifi_password
+    
+  ap:
+    ssid: "$device_name Fallback"
+    password: $fallback_password
+
+ota:
+  - platform: esphome
+    password: $ota_password
+
+api:
+  encryption:
+    key: $api_key
+  on_client_connected:
+    - if:
+        condition:
+          lambda: 'return (0 == client_info.find("Home Assistant "));'
+        then:
+          - lvgl.label.update:
+              id: ha_status_icon_label
+              text_color: ${color_white}
+              text: ${mdi_wifi}
+          - script.execute: update_date_time_label
+  on_client_disconnected:
+    - if:
+        condition:
+          lambda: 'return (0 == client_info.find("Home Assistant "));'
+        then:
+          - lvgl.label.update:
+              id: ha_status_icon_label
+              text_color: ${color_warning}
+              text: ${mdi_wifi_off}
+          - lvgl.label.update:
+              id: date_time_label
+              text: "Disconnected"
+
+captive_portal:
+
+web_server:
+  port: 80
+
+i2c:
+  sda: GPIO6
+  scl: GPIO5
+  id: touch_i2c
+
+external_components:
+  # ESPHome PR for i80, io_bus, ili9xxx, spi
+  - source: github://pr#8230
+    components: [i80, io_bus, ili9xxx, spi]
+    refresh: 1d
+
+globals:
+  - id: active_lvgl_page
+    type: std::string
+  - id: fan_modes
+    type: std::map<int, std::pair<std::string, std::string>>
+    restore_value: no
+    initial_value: |-
+      {
+        {0, {"off", "${mdi_fan_off}"}},         // fan-off
+        {1, {"auto", "${mdi_fan_auto}"}},       // fan-auto
+        {2, {"low", "${mdi_fan_speed_1}"}},     // fan-speed-1
+        {3, {"medium", "${mdi_fan_speed_2}"}},  // fan-speed-2
+        {4, {"high", "${mdi_fan_speed_3}"}},    // fan-speed-3
+        {5, {"diffuse", "${mdi_fan}"}}          // fan-diffuse
+      }
+
+time:
+  - platform: homeassistant
+    id: hass_time
+    on_time:
+      - seconds: /1  # Update every second
+        then:
+          - script.execute: update_date_time_label
+      # Redraw display every minute
+      - seconds: 0
+        minutes: /1
+        then:
+          - if:
+              condition: lvgl.is_paused
+              then:
+                - lvgl.resume:
+                - lvgl.widget.redraw:
+                - delay: 1s
+                - lvgl.pause:
+              else:
+                - lvgl.widget.redraw:
+
+button:
+  - platform: restart
+    icon: mdi:power-cycle
+    name: "ESP Reboot"
+    entity_category: "config"
+
+  - platform: factory_reset
+    disabled_by_default: True
+    name: "ESP Factory Reset"
+    id: factory_reset_all
+    entity_category: "config"
+
+text_sensor:
+  # HA Climate HVAC mode sensor
+  - platform: homeassistant
+    entity_id: ${climate_entity}
+    id: hvac_mode
+    internal: true
+    on_value:
+      then:
+        - script.execute:
+            id: set_hvac_mode
+            mode: !lambda return x;
+        - script.execute: turn_on_screen_light
+  # HA Climate HVAC fan mode sensor
+  - platform: homeassistant
+    entity_id: ${climate_entity}
+    id: fan_mode
+    attribute: fan_mode
+    internal: true
+    on_value:
+      - script.execute:
+          id: set_fan_mode
+          mode: !lambda return x;
+      - script.execute: turn_on_screen_light
+  # Wifi Info
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      entity_category: "diagnostic"
+      icon: mdi:ip-network
+    ssid:
+      name: "Wifi SSID"
+      icon: mdi:wifi-check
+    mac_address:
+      name: "Wifi MAC"
+      entity_category: "diagnostic"
+      icon: mdi:ip-network
+  # ESPHome Info
+  - platform: version
+    name: "ESPHome Version"
+    hide_timestamp: true
+  - platform: debug
+    reset_reason:
+      name: Reset Reason
+      disabled_by_default: True
+
+number:
+  # Display Backlight Brightness Adjust
+  - platform: template
+    name: "BackLight Brightness"
+    optimistic: true
+    id: backlight_brightness
+    icon: mdi:brightness-percent
+    unit_of_measurement: "%"
+    initial_value: 80
+    restore_value: true
+    min_value: 5
+    max_value: 100
+    step: 5
+    mode: slider
+  # Screen Timeout Adjust
+  - platform: template
+    name: "Screen Timeout"
+    optimistic: true
+    id: screen_timeout
+    icon: mdi:timer
+    unit_of_measurement: "s"
+    initial_value: 300
+    restore_value: true    
+    min_value: 10
+    max_value: 300
+    step: 5
+    mode: slider
+
+touchscreen:
+  - platform: ft63x6
+    id: device_touchscreen
+    display: device_display
+    interrupt_pin: GPIO7
+    transform:
+      swap_xy: true
+      mirror_y: false
+      mirror_x: true
+    on_touch:
+      - script.execute: turn_on_screen_light
+
+output:
+  - platform: ledc
+    id: backlight_pwm
+    pin:
+      number: GPIO45
+      ignore_strapping_warning: true
+
+light:
+  - platform: monochromatic
+    id: backlight
+    name: Backlight
+    output: backlight_pwm
+    icon: mdi:brightness-percent
+    default_transition_length: 500ms
+    restore_mode: RESTORE_AND_ON
+    on_turn_on: 
+      then:
+        - script.execute: turn_on_screen_light
+    on_turn_off: 
+      then:
+        - lvgl.pause:
+
+i80:
+  - id: i80bus
+    dc_pin: 
+      number: GPIO0
+      ignore_strapping_warning: true
+    wr_pin: GPIO47
+    data_pins:
+      - GPIO9
+      - number: GPIO46
+        ignore_strapping_warning: true
+      - number: GPIO3
+        ignore_strapping_warning: true
+      - GPIO8
+      - GPIO18
+      - GPIO17
+      - GPIO16
+      - GPIO15
+
+display:
+  - platform: ili9xxx
+    id: device_display
+    model: ST7796
+    bus_type: i80
+    reset_pin: GPIO4
+    pixel_mode: 16bit
+    data_rate: 4MHz
+    color_order: bgr
+    invert_colors: true
+    dimensions:
+      width: 480
+      height: 320
+    transform:
+      mirror_y: false
+      mirror_x: false
+      swap_xy: true
+    auto_clear_enabled: false
+    update_interval: never
+
+sensor:
+  # HA Climate temperature sensor
+  - platform: homeassistant
+    entity_id: ${climate_entity}
+    id: set_temperature
+    attribute: temperature
+    internal: true
+    on_value:
+      - lvgl.indicator.update:
+          id: hvac_temp_ticks
+          end_value: !lambda return x * 10;
+      - lvgl.arc.update:
+          id: hvac_temp_knob
+          value: !lambda return x * 10;
+      - lvgl.label.update:
+          id: hvac_temp_label
+          text:
+            format: "%.1f"
+            args: [ 'round(x * 10) / 10' ]
+      - script.execute: turn_on_screen_light
+  # HA Climate current temperature sensor
+  - platform: homeassistant
+    entity_id: ${climate_entity}
+    id: current_temperature
+    attribute: current_temperature
+    internal: true
+    on_value:
+      - lvgl.indicator.update:
+          id: current_temp_needle
+          value: !lambda return x * 10;
+      - lvgl.label.update:
+          id: current_temp_label
+          text:
+            format: "%.1f°C"
+            args: [ 'round(x * 10) / 10' ]
+  - platform: uptime
+    name: "Uptime"
+    id: sys_uptime
+    entity_category: "diagnostic"
+    update_interval: 60s
+  - platform: wifi_signal 
+    name: "Wifi RSSI"
+    id: wifi_signal_db
+    icon: mdi:wifi-arrow-left-right
+    update_interval: 60s
+    entity_category: "diagnostic"
+
+font:
+  - file: 'gfonts://Roboto@400'
+    glyphs: ' 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°.:/+-%–'
+    id: roboto_reg
+    size: 18
+    bpp: 4
+    extras:
+      - file: "fonts/materialdesignicons-webfont.ttf"
+        glyphs: 
+          - ${mdi_wifi}
+          - ${mdi_wifi_off}
+          - ${mdi_power}
+          - ${mdi_fire}
+          - ${mdi_snowflake}
+          - ${mdi_fan}
+          - ${mdi_fan_auto}
+          - ${mdi_fan_speed_1}
+          - ${mdi_fan_speed_2}
+          - ${mdi_fan_speed_3}
+          - ${mdi_fan_off}
+
+  - file: 'gfonts://Roboto@400'
+    glyphs: ' 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°.:/+-%–'
+    id: roboto_med
+    size: 24
+    bpp: 4
+    extras:
+      - file: "fonts/materialdesignicons-webfont.ttf"
+        glyphs: 
+          - ${mdi_thermometer}
+          - ${mdi_thermostat_auto}
+          - ${mdi_chevron_up}
+          - ${mdi_chevron_down}
+          - ${mdi_plus}
+          - ${mdi_minus}
+          - ${mdi_water_percent}
+          - ${mdi_power}
+          - ${mdi_fire}
+          - ${mdi_snowflake}
+          - ${mdi_fan}
+          - ${mdi_fan_auto}
+          - ${mdi_fan_speed_1}
+          - ${mdi_fan_speed_2}
+          - ${mdi_fan_speed_3}
+          - ${mdi_fan_off}
+
+  - file: 'gfonts://Roboto@400'
+    glyphs: ' -0123456789.°C'
+    id: roboto_huge
+    size: 50
+    bpp: 4
+
+script:
+  # Screen Light Script
+  - id: turn_on_screen_light
+    mode: restart
+    then:
+      - lvgl.resume:
+      - light.turn_on:
+          id: backlight
+          brightness: !lambda return id(backlight_brightness).state / 100;       
+          transition_length: 1s
+  - id: idle_screen_off
+    mode: restart
+    then:
+      - light.turn_on:
+            id: backlight
+            brightness: 50%
+            transition_length: 2s
+      - delay: 30s
+      - light.turn_on:
+            id: backlight
+            brightness: 35%
+            transition_length: 5s
+      - delay: 60s
+      - light.turn_off:
+            id: backlight
+      - lvgl.pause:
+          show_snow: true
+  # Update Time Label
+  - id: update_date_time_label
+    then:
+      - lvgl.label.update:
+          id: date_time_label
+          text: !lambda |-
+            static const char * const day_names[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
+            static char buf[15];  // Buffer for "XXX 12:59:59PM"
+            auto now = id(hass_time).now();
+            int hour12 = now.hour % 12;
+            hour12 = hour12 ? hour12 : 12;
+            snprintf(buf, sizeof(buf), "%s %d:%02d:%02d%s", 
+                    day_names[now.day_of_week-1], 
+                    hour12,
+                    now.minute,
+                    now.second,
+                    now.hour >= 12 ? "PM" : "AM");
+            return buf;
+  # HVAC Modes UI scripts
+  - id: set_hvac_mode
+    parameters:
+      mode: string
+    then:
+      # Reset other buttons to inactive color
+      - lvgl.label.update:
+          id: auto_button_label
+          text_color: ${color_grey}
+      - lvgl.label.update:
+          id: cool_button_label
+          text_color: ${color_grey}
+      - lvgl.label.update:
+          id: heat_button_label
+          text_color: ${color_grey}
+      - lvgl.label.update:
+          id: dry_button_label
+          text_color: ${color_grey}
+      - lvgl.label.update:
+          id: fan_only_button_label
+          text_color: ${color_grey}
+      # Mode Label update
+      - if:
+          condition:
+            lambda: 'return (mode == "off" || mode == "unavailable" || mode == "unknown");'
+          then:
+            - lvgl.label.update:
+                id: mode_label
+                text: !lambda |-
+                  if (mode == "off") return "OFF";
+                  return "OFFLINE";
+            - lvgl.label.update:
+                id: power_button_label
+                text_color: ${color_grey}
+            - lvgl.widget.hide:
+              - temp_inc_button
+              - temp_dec_button
+              - temp_label
+              - fan_inc_button
+              - fan_dec_button
+              - fan_speed_roller
+              - meter_ticks
+              - hvac_temp_knob
+              - fan_speed_label
+            - lvgl.label.update:
+                id: hvac_temp_label
+                text_color: ${color_grey}
+          else:
+            - lvgl.label.update:
+                id: power_button_label
+                text_color: ${color_success}
+            - lvgl.widget.show:
+              - temp_inc_button
+              - temp_dec_button
+              - temp_label
+              - fan_inc_button
+              - fan_dec_button
+              - fan_speed_roller
+              - meter_ticks
+              - hvac_temp_knob
+              - fan_speed_label
+            - lvgl.label.update:
+                id: hvac_temp_label
+                text_color: ${color_white}
+      - if:
+          condition:
+            lambda: 'return mode == "auto";'
+          then:
+            - lvgl.label.update:
+                id: mode_label
+                text: "AUTO"
+            - lvgl.label.update:
+                id: auto_button_label
+                text_color: ${color_auto}
+      - if:
+          condition:
+            lambda: 'return mode == "cool";'
+          then:
+            - lvgl.label.update:
+                id: mode_label
+                text: "COOL"
+            - lvgl.label.update:
+                id: cool_button_label
+                text_color: ${color_cool}
+      - if:
+          condition:
+            lambda: 'return mode == "heat";'
+          then:
+            - lvgl.label.update:
+                id: mode_label
+                text: "HEAT"
+            - lvgl.label.update:
+                id: heat_button_label
+                text_color: ${color_heat}
+      - if:
+          condition:
+            lambda: 'return mode == "dry";'
+          then:
+            - lvgl.label.update:
+                id: mode_label
+                text: "DRY"
+            - lvgl.label.update:
+                id: dry_button_label
+                text_color: ${color_dry}
+      - if:
+          condition:
+            lambda: 'return mode == "fan_only";'
+          then:
+            - lvgl.label.update:
+                id: mode_label
+                text: "FAN"
+            - lvgl.label.update:
+                id: fan_only_button_label
+                text_color: ${color_fan}
+  # Fan Modes UI scripts
+  - id: set_fan_mode
+    parameters:
+      mode: string
+    then:
+      - lambda: |-
+          std::string display_mode = mode;
+          std::transform(display_mode.begin(), display_mode.end(), display_mode.begin(), ::toupper);
+          display_mode = "${mdi_fan} " + display_mode;
+          lv_label_set_text(id(fan_speed_label), display_mode.c_str());
+          for (const auto& entry : id(fan_modes)) {
+            if (entry.second.first == mode) {
+              id(fan_speed_roller).set_selected_index(entry.first, LV_ANIM_ON);
+              break;
+            }
+          }
+  - id: cycle_fan_mode
+    parameters:
+      direction: string
+    then:
+      - lambda: |-
+          int current_index = id(fan_speed_roller).get_selected_index();
+          const int min_index = 1;  // Start from auto (index 1)
+          const int max_index = 5;  // End at diffuse (index 5)
+          if (direction == "up") {
+            current_index = (current_index >= max_index) ? min_index : current_index + 1;
+          } else {
+            current_index = (current_index <= min_index) ? max_index : current_index - 1;
+          }
+          id(fan_speed_roller).set_selected_index(current_index, LV_ANIM_ON);
+      - homeassistant.action:
+          action: climate.set_fan_mode
+          data:
+            entity_id: ${climate_entity}
+            fan_mode: !lambda |-
+              switch(id(fan_speed_roller).get_selected_index()) {
+                case 1: return "auto";
+                case 2: return "low";
+                case 3: return "medium";
+                case 4: return "high";
+                case 5: return "diffuse";
+                default: return "auto";
+              }
+  # Set HVAC Temperature UI scripts
+  - id: set_hvac_temp
+    parameters:
+      direction: string
+    then:
+      - homeassistant.action:
+          action: climate.set_temperature
+          data:
+            entity_id: ${climate_entity}
+            temperature: !lambda |-
+              float current_temp = id(set_temperature).state;
+              if (direction == "up") {
+                return current_temp + 0.5;
+              } else {
+                return current_temp - 0.5;
+              }
+
+lvgl:
+  # LVGL GUI Design
+  displays: device_display
+  touchscreens: device_touchscreen
+  on_idle:
+    - timeout: !lambda return id(screen_timeout).state * 1000;
+      then:
+        - script.execute: idle_screen_off
+  bg_color: ${color_darker_grey}
+  text_color: ${color_white}
+  scrollbar_mode: "OFF"
+  default_font: roboto_reg
+  style_definitions:
+    - id: style_menu_button
+      align: CENTER
+      bg_opa: TRANSP
+      shadow_opa: TRANSP
+      height: 50
+      width: 50
+      radius: 50%
+    - id: style_menu_button_label
+      align: CENTER
+      y: 3
+      text_font: roboto_med
+    - id: style_circle_button
+      bg_opa: TRANSP
+      radius: 75
+      outline_width: 1
+      width: 50
+      height: 50
+    - id: style_mode_button
+      bg_opa: TRANSP
+      radius: 50
+      outline_width: 1
+      height: 35
+      width: 60
+      align: BOTTOM_MID
+    - id: style_circle_label
+      align: center
+      y: 2
+      text_align: center
+      text_font: roboto_med
+  top_layer:
+    widgets:
+      # Time
+      - label:
+          id: date_time_label
+          text: "Connecting..." # Time to be updated from Home Assistant time
+          align: TOP_LEFT
+          x: 10
+          y: 10
+          text_align: CENTER
+          text_color: ${color_grey}
+      # Wifi icon
+      - label:
+          id: ha_status_icon_label
+          hidden: false
+          align: top_right
+          x: -10
+          y: 10
+          text_align: right
+          text_color: ${color_warning}  # Wifi icon color to be updated from Home Assistant API status
+          text: ${mdi_wifi_off} # Wifi icon to be updated from Home Assistant API status
+          text_font: roboto_reg
+      - obj:
+          id: boot_screen
+          x: 0
+          y: 0
+          width: 100%
+          height: 100%
+          bg_color: ${color_darker_grey}
+          bg_opa: COVER
+          radius: 0
+          pad_all: 0
+          border_width: 0
+          widgets:
+            - spinner:
+                align: CENTER
+                height: 50
+                width: 50
+                spin_time: 1s
+                arc_length: 60deg
+                arc_width: 8
+                indicator:
+                  arc_color: ${color_accent}
+                  arc_width: 8
+          on_press:
+            - lvgl.widget.hide: boot_screen
+  pages:
+    - id: main_page
+      widgets:
+        # Arc Outer Ring only for visual effect
+        - arc:
+            id: arc_ring_outer
+            height: 250
+            width: 250
+            y: -20
+            align: CENTER
+            arc_color: ${color_light_grey}
+            arc_opa: COVER
+            arc_width: 10
+            arc_rounded: false
+            knob:
+              bg_color: ${color_white}
+        # Arc Inner Ring only for visual effect
+        - obj:
+            id: arc_ring_inner
+            height: 238
+            width: 238
+            y: -20
+            radius: 120
+            align: CENTER
+            border_width: 40
+            border_color: ${color_dark_grey}
+            bg_color: ${color_darker_grey}
+        # Meter ticks and needle
+        - meter:
+            id: meter_ticks
+            hidden: true
+            height: 248
+            width: 248
+            y: -20
+            align: CENTER
+            bg_opa: TRANSP
+            border_width: 0
+            scales:
+              range_from: 160   # 16°C
+              range_to: 340     # 30°C
+              # Set temperature ticks background
+              ticks:
+                count: 60
+                length: 18
+                width: 2
+                color: ${color_temp_ticks}
+              indicators:
+                # Curremt temperature needle
+                - line:
+                    id: current_temp_needle
+                    color: ${color_temp_current}
+                    width: 3
+                    r_mod: 10
+                    value: 340 # 34°C Should be the same as the current temperature label
+                # Set temperature ticks
+                - tick_style:
+                    id: hvac_temp_ticks
+                    start_value: 160
+                    end_value: 240 # 24°C Should be the same as the set temperature label
+                    color_start: ${color_temp_set}
+                    color_end: ${color_temp_set}
+                    width: 2
+        # Meter inner Ring only for visual effect
+        - obj:
+            id: meter_ring_inner
+            height: 180
+            width: 180
+            y: -20
+            radius: 120
+            align: CENTER
+            border_width: 12
+            border_color: ${color_dark_grey}
+            bg_color: ${color_darker_grey}
+        # Set temperature knob, should change with the set temperature ticks
+        - arc:
+            id: hvac_temp_knob
+            hidden: true
+            align: CENTER
+            arc_opa: TRANSP
+            adjustable: true
+            value: 240 # 27°C Should be the same as the set temperature needle
+            min_value: 160
+            max_value: 340
+            width: 215
+            height: 215
+            y: -20
+            arc_width: 16
+            change_rate: 30
+            indicator:
+              arc_opa: TRANSP
+              arc_width: 16
+            knob:
+              bg_color: ${color_temp_set}
+              border_width: 4
+              border_color: ${color_white}
+            on_change:
+              then:
+                - homeassistant.action:
+                    action: climate.set_temperature
+                    data:
+                      entity_id: ${climate_entity}
+                      temperature: !lambda |-
+                        float temp = x / 10.0;
+                        return roundf(temp * 2) / 2;
+        # HVAC Modes: OFF, AUTO, HEAT, COOL
+        - label:
+            id: mode_label
+            align: CENTER
+            y: -70
+            text: "KPR" # HVAC mode to be updated from Home Assistant climate entity
+            text_font: roboto_reg
+            text_color: ${color_grey}
+        # Set Temperature label, should change with the set temperature knob
+        - label:
+            id: hvac_temp_label
+            hidden: false
+            align: CENTER
+            y: -20
+            text_font: roboto_huge
+            text: "---" # Set temperature to be updated from Home Assistant climate entity
+        # Celsius label only to show °C
+        - label:
+            id: celsius_label
+            align: CENTER
+            x: 60
+            y: -35
+            text: "°C"
+        # Current Temperature label, should change with the current temperature needle
+        - label:
+            id: current_temp_label
+            hidden: false
+            align: CENTER
+            y: 30 
+            text: "---" # Current temperature to be updated from Home Assistant climate entity
+            text_color: ${color_temp_current}
+        # Fan speed label only to show fan icon
+        - label:
+            id: fan_speed_label
+            hidden: true
+            align: CENTER
+            y: 78
+            text_align: CENTER
+            text: "---"
+            text_font: roboto_reg
+            text_color: ${color_grey}
+        # Temperature buttons
+        # HVAC increase temperature
+        - button:
+            id: temp_inc_button
+            hidden: true
+            x: 30
+            y: -70
+            align: LEFT_MID
+            styles: style_circle_button
+            widgets:
+              - label:
+                  styles: style_circle_label
+                  text: ${mdi_plus}
+            on_press:
+              - script.execute:
+                  id: set_hvac_temp
+                  direction: "up"
+        # Temperature label only to show temp con
+        - label:
+            id: temp_label
+            hidden: true
+            align: LEFT_MID
+            x: 42
+            y: -15
+            text_align: CENTER
+            text: ${mdi_thermometer}
+            text_font: roboto_med
+        # HVAC decrease temperature
+        - button:
+            id: temp_dec_button
+            hidden: true
+            x: 30
+            y: 30
+            align: LEFT_MID
+            styles: style_circle_button
+            widgets:
+              - label:
+                  styles: style_circle_label
+                  text: ${mdi_minus}
+            on_press:
+              - script.execute:
+                  id: set_hvac_temp
+                  direction: "down"
+        # Fan buttons
+        # HVAC Fan speed increase button
+        - button:
+            id: fan_inc_button
+            hidden: true
+            x: -30
+            y: -70
+            align: RIGHT_MID
+            styles: style_circle_button
+            widgets:
+              - label:
+                  styles: style_circle_label
+                  text: ${mdi_chevron_up}
+            on_press:
+              - script.execute:
+                  id: cycle_fan_mode
+                  direction: "up"
+        # Fan speed icon roller
+        - roller:
+            id: fan_speed_roller
+            hidden: true
+            state:
+              disabled: true
+            align: RIGHT_MID
+            x: -27
+            y: -15
+            anim_time: 500ms
+            text_font: roboto_med
+            text_opa: TRANSP
+            bg_opa: TRANSP
+            border_width: 0
+            text_line_space: 30
+            visible_row_count: 2
+            selected:
+              text_font: roboto_med
+              text_opa: COVER
+              bg_opa: TRANSP
+              border_width: 0
+            options:
+              - ${mdi_fan_off}
+              - ${mdi_fan_auto}
+              - ${mdi_fan_speed_1}
+              - ${mdi_fan_speed_2}
+              - ${mdi_fan_speed_3}
+              - ${mdi_fan}
+            selected_index: 0
+        # HVAC Fan speed descrease button
+        - button:
+            id: fan_dec_button
+            hidden: true
+            x: -30
+            y: 30
+            width: 50
+            height: 50
+            align: RIGHT_MID
+            styles: style_circle_button
+            widgets:
+              - label:
+                  styles: style_circle_label
+                  text: ${mdi_chevron_down}
+            on_press:
+              - script.execute:
+                  id: cycle_fan_mode
+                  direction: "down"
+        # HVAC Mode buttons
+        # POWER
+        - button:
+            id: power_button
+            x: -180  # Leftmost position
+            y: -15
+            styles: style_mode_button
+            widgets:
+              - label:
+                  id: power_button_label
+                  styles: style_menu_button_label
+                  text: ${mdi_power} 
+                  text_color: ${color_grey}
+            on_press:
+              - if:
+                  condition:
+                    lambda: 'return id(hvac_mode).state == "off";'
+                  then:
+                    - homeassistant.action:
+                        action: climate.set_hvac_mode
+                        data:
+                          entity_id: ${climate_entity}
+                          hvac_mode: "cool"
+                  else:
+                    - homeassistant.action:
+                        action: climate.set_hvac_mode
+                        data:
+                          entity_id: ${climate_entity}
+                          hvac_mode: "off"
+        # AUTO
+        - button:
+            id: auto_button
+            x: -108  # -180 + 72
+            y: -15
+            styles: style_mode_button
+            widgets:
+              - label:
+                  id: auto_button_label
+                  styles: style_menu_button_label
+                  text: ${mdi_thermostat_auto}
+                  text_color: ${color_grey}
+            on_press:
+              - homeassistant.action:
+                  action: climate.set_hvac_mode
+                  data:
+                    entity_id: ${climate_entity}
+                    hvac_mode: "auto"
+        # COOL
+        - button:
+            id: cool_button
+            x: -36   # -108 + 72
+            y: -15
+            styles: style_mode_button
+            widgets:
+              - label:
+                  id: cool_button_label
+                  styles: style_menu_button_label
+                  text: ${mdi_snowflake}
+                  text_color: ${color_grey}
+            on_press:
+              - homeassistant.action:
+                  action: climate.set_hvac_mode
+                  data:
+                    entity_id: ${climate_entity}
+                    hvac_mode: "cool"
+        # HEAT
+        - button:
+            id: heat_button
+            x: 36    # -36 + 72
+            y: -15
+            styles: style_mode_button
+            widgets:
+              - label:
+                  id: heat_button_label
+                  styles: style_menu_button_label
+                  text: ${mdi_fire}
+                  text_color: ${color_grey}
+            on_press:
+              - homeassistant.action:
+                  action: climate.set_hvac_mode
+                  data:
+                    entity_id: ${climate_entity}
+                    hvac_mode: "heat"
+        # DRY
+        - button:
+            id: dry_button
+            x: 108   # 36 + 72
+            y: -15
+            styles: style_mode_button
+            widgets:
+              - label:
+                  id: dry_button_label
+                  styles: style_menu_button_label
+                  text: ${mdi_water_percent}
+                  text_color: ${color_grey}
+            on_press:
+              - homeassistant.action:
+                  action: climate.set_hvac_mode
+                  data:
+                    entity_id: ${climate_entity}
+                    hvac_mode: "dry"
+        # FAN ONLY
+        - button:
+            id: fan_only_button
+            x: 180   # Rightmost position
+            y: -15
+            styles: style_mode_button
+            widgets:
+              - label:
+                  id: fan_only_button_label
+                  styles: style_menu_button_label
+                  text: ${mdi_fan}
+                  text_color: ${color_grey}
+            on_press:
+              - homeassistant.action:
+                  action: climate.set_hvac_mode
+                  data:
+                    entity_id: ${climate_entity}
+                    hvac_mode: "fan_only"
