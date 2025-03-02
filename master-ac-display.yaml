@@ -178,22 +178,22 @@ time:
   - platform: homeassistant
     id: hass_time
     on_time:
-      - seconds: /1  # Update every second
+      - seconds: 0  # Update every second
         then:
           - script.execute: update_date_time_label
       # Redraw display every minute
-      - seconds: 0
-        minutes: /1
-        then:
-          - if:
-              condition: lvgl.is_paused
-              then:
-                - lvgl.resume:
-                - lvgl.widget.redraw:
-                - delay: 1s
-                - lvgl.pause:
-              else:
-                - lvgl.widget.redraw:
+      # - seconds: 0
+      #   minutes: /1
+      #   then:
+      #     - if:
+      #         condition: lvgl.is_paused
+      #         then:
+      #           - lvgl.resume:
+      #           - lvgl.widget.redraw:
+      #           - delay: 1s
+      #           - lvgl.pause:
+      #         else:
+      #           - lvgl.widget.redraw:
 
 button:
   - platform: restart
@@ -218,7 +218,7 @@ text_sensor:
         - script.execute:
             id: set_hvac_mode
             mode: !lambda return x;
-        - script.execute: turn_on_screen_light
+        # - script.execute: turn_on_screen_light
   # HA Climate HVAC fan mode sensor
   - platform: homeassistant
     entity_id: ${climate_entity}
@@ -229,7 +229,7 @@ text_sensor:
       - script.execute:
           id: set_fan_mode
           mode: !lambda return x;
-      - script.execute: turn_on_screen_light
+      # - script.execute: turn_on_screen_light
   # Wifi Info
   - platform: wifi_info
     ip_address:
@@ -290,7 +290,11 @@ touchscreen:
       mirror_y: false
       mirror_x: true
     on_touch:
-      - script.execute: turn_on_screen_light
+    - if:
+        condition:
+          - light.is_off: backlight
+        then:
+          - script.execute: turn_on_screen_light
 
 output:
   - platform: ledc
@@ -371,7 +375,7 @@ sensor:
           text:
             format: "%.1f"
             args: [ 'round(x * 10) / 10' ]
-      - script.execute: turn_on_screen_light
+      # - script.execute: turn_on_screen_light
   # HA Climate current temperature sensor
   - platform: homeassistant
     entity_id: ${climate_entity}
