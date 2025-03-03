@@ -4,3 +4,4 @@
 .venv/
 /.esphome/
 /secrets.yaml
+esphome_repo/

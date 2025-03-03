@@ -154,9 +154,13 @@ i2c:
 
 external_components:
   # ESPHome PR for i80, io_bus, ili9xxx, spi
-  - source: github://pr#8230
+  # - source: github://pr#8230
+  #   components: [i80, io_bus, ili9xxx, spi]
+  #   refresh: 1d
+  - source:
+      type: local
+      path: external_components
     components: [i80, io_bus, ili9xxx, spi]
-    refresh: 1d
 
 globals:
   - id: active_lvgl_page
@@ -387,7 +391,7 @@ sensor:
     entity_category: "diagnostic"
 
 font:
-  - file: 'gfonts://Roboto@400'
+  - file: 'fonts/roboto-400-v1.ttf'
     glyphs: ' 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°.:/+-%–'
     id: roboto_reg
     size: 18
@@ -407,7 +411,7 @@ font:
           - ${mdi_fan_speed_3}
           - ${mdi_fan_off}
 
-  - file: 'gfonts://Roboto@400'
+  - file: 'fonts/roboto-400-v1.ttf'
     glyphs: ' 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ°.:/+-%–'
     id: roboto_med
     size: 24
@@ -432,7 +436,7 @@ font:
           - ${mdi_fan_speed_3}
           - ${mdi_fan_off}
 
-  - file: 'gfonts://Roboto@400'
+  - file: 'fonts/roboto-400-v1.ttf'
     glyphs: ' -0123456789.°C'
     id: roboto_huge
     size: 50
