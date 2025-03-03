@@ -94,6 +94,20 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 
 ## Configuration
 
+### Home Assistant Settings
+
+After flashing the device, Home Assistant will discover automatically.
+
+Nake sure the at you have enabled `Allow the device to perform Home Assistant Actions`
+
+![ESPHome Device Configure](images/device-configure.png)
+
+![Allow HA Actions](images/ha-action-submit.png)
+
+#### Device Controls 
+
+![Device Controls](images/device-info.png)
+
 ### Display Settings
 | Setting | Range | Default | Description |
 |---------|--------|---------|-------------|
