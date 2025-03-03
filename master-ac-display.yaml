@@ -178,22 +178,9 @@ time:
   - platform: homeassistant
     id: hass_time
     on_time:
-      - seconds: 0  # Update every second
+      - seconds: /1  # Update every second
         then:
           - script.execute: update_date_time_label
-      # Redraw display every minute
-      - seconds: 0
-        minutes: /1
-        then:
-          - if:
-              condition: lvgl.is_paused
-              then:
-                - lvgl.resume:
-                - lvgl.widget.redraw:
-                - delay: 1s
-                - lvgl.pause:
-              else:
-                - lvgl.widget.redraw:
 
 button:
   - platform: restart
