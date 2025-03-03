@@ -12,6 +12,10 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 
 <a href="https://www.youtube.com/watch?v=l97-AFoVEJQ" target="_blank" rel="noopener noreferrer">▶ Click here to watch a short demo</a>
 
+### 3D Print Case
+
+[Thingiverse - WT32-SC01 PLUS wall enclosure](https://www.thingiverse.com/thing:6683758)
+
 ## Table of Contents
 - [Hardware Requirements](#hardware-requirements)
 - [Features](#features)
