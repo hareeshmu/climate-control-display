@@ -784,7 +784,7 @@ lvgl:
             border_width: 0
             scales:
               range_from: 160   # 16°C
-              range_to: 340     # 30°C
+              range_to: 340     # 34°C
               # Set temperature ticks background
               ticks:
                 count: 60
@@ -825,7 +825,7 @@ lvgl:
             align: CENTER
             arc_opa: TRANSP
             adjustable: true
-            value: 240 # 27°C Should be the same as the set temperature needle
+            value: 240 # 24°C (24x10) Should be the same as the set temperature needle
             min_value: 160
             max_value: 340
             width: 215

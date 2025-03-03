@@ -23,14 +23,15 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 - [References](#references)
 
 ## Hardware Requirements
-- **Display Module**: WT32-SC01 Plus (ZX3D50CE08S-v15-USRC)
+- **Display Module**: [Wireless-Tag WT32-SC01 PLUS](https://robu.in/product/wireless-tag-wt32-sc01-plus-esp32s3-based-3-5-inch-iot-display/) (ZX3D50CE08S-v15-USRC) 
   - 3.5 inch 320x480 LCD
+  - Screen Resolution: 480 x 320
+  - Interface: 8080
   - ST7796UI driver with MCU8080 8Bit interface
   - RGB565 color
   - ILI9488 controller
   - Single touch capacitive FT6336U I2S
-
-- **MCU**: ESP32-S3 (ESP32-WROVER-B)
+  - MCU: ESP32-S3 (ESP32-WROVER-B)
   - WiFi + BT + BLE
   - 4MB SPI flash
   - 8MB PSRAM
@@ -54,7 +55,6 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 
 ### Display Features
 - Auto-dimming display
-- Screen burn-in protection
 - Time display with AM/PM format
 - WiFi status indication
 
@@ -99,19 +99,6 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 |---------|--------|---------|-------------|
 | Brightness | 5-100% | 50% | Screen brightness |
 | Timeout | 10-300s | 300s | Screen timeout |
-
-### Auto-dim Schedule
-| Time | Brightness | Action |
-|------|------------|--------|
-| 0s | 100% | Initial brightness |
-| 60s | 50% | First dim |
-| 15min | 35% | Second dim |
-| 30min | 0% | Display off |
-
-### Anti-burn Protection
-- Activates every 4 hours
-- Duration: 30 minutes
-- Shows snow effect when active
 
 ### Temperature Control
 - Range: 16°C - 34°C
