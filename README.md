@@ -16,6 +16,8 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 
 [Thingiverse - WT32-SC01 PLUS wall enclosure](https://www.thingiverse.com/thing:6683758)
 
+![Wall Mount](images/wall_mount.jpg)
+
 ## Table of Contents
 - [Hardware Requirements](#hardware-requirements)
 - [Features](#features)
