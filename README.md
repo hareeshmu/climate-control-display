@@ -18,6 +18,8 @@ An ESPHome-based smart climate control interface for Home Assistant using WT32-S
 
 ![Wall Mount](images/wall_mount.jpg)
 
+![esp32-s3_wireless-tag_sc01_plus_back_connection](images/esp32-s3_wireless-tag_sc01_plus_back_connection.png)
+
 ## Table of Contents
 - [Hardware Requirements](#hardware-requirements)
 - [Features](#features)
